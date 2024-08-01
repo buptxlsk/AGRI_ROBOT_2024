@@ -1,0 +1,29 @@
+<launch>
+    <arg name="ahead_topic" default="/grayscale_data_ahead" />
+    <arg name="behind_topic" default="/grayscale_data_behind" />
+    <arg name="ahead_port" default="/dev/ttyUSB1" />
+    <arg name="behind_port" default="/dev/ttyUSB4" />
+    <arg name="baud_rate" default="9600" />
+
+    <group ns="ahead">
+        <param name="port" value="$(arg ahead_port)" />
+        <param name="baud_rate" value="$(arg baud_rate)" />
+        <param name="topic" value="$(arg ahead_topic)" />
+        <node pkg="grayscale_sensor_reader" type="grayscale_sensor_node" name="grayscale_sensor_reader_ahead" output="screen">
+            <param name="port" value="$(arg ahead_port)" />
+            <param name="baud_rate" value="$(arg baud_rate)" />
+            <param name="topic" value="$(arg ahead_topic)" />
+        </node>
+    </group>
+
+    <group ns="behind">
+        <param name="port" value="$(arg behind_port)" />
+        <param name="baud_rate" value="$(arg baud_rate)" />
+        <param name="topic" value="$(arg behind_topic)" />
+        <node pkg="grayscale_sensor_reader" type="grayscale_sensor_node" name="grayscale_sensor_reader_behind" output="screen">
+            <param name="port" value="$(arg behind_port)" />
+            <param name="baud_rate" value="$(arg baud_rate)" />
+            <param name="topic" value="$(arg behind_topic)" />
+        </node>
+    </group>
+</launch>
