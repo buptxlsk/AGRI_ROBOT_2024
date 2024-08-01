@@ -1,0 +1,5 @@
+<launch>
+    <include file="$(find chassis)/launch/chassis_bringUp.launch"></include>
+    <node pkg="auto_fsm" type="auto_fsm_node" name="auto_fsm_node" output="screen" />
+
+</launch>

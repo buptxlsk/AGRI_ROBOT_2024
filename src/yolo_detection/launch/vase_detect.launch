@@ -1,0 +1,24 @@
+<launch>
+    <arg name="left_topic" default="/vase_detect_left" />
+    <arg name="right_topic" default="/vase_detect_right" />
+    <arg name="left_camera" default="0"/>
+    <arg name="right_camera" default="2"/>
+    
+    <group ns="left">
+        <param name="vision_topic" value="$(arg left_topic)" />
+        <param name="camera_num" value="$(arg left_camera)" />
+        <node pkg="yolo_detection" type="vase_detect_yolo.py" name="vase_detect_left" output="log">
+            <param name="vision_topic" value="$(arg left_topic)" />
+            <param name="camera_num" value="$(arg left_camera)" />
+        </node>
+    </group>
+    
+    <group ns="right">
+        <param name="vision_topic" value="$(arg right_topic)" />
+        <param name="camera_num" value="$(arg right_camera)" />
+        <node pkg="yolo_detection" type="vase_detect_yolo.py" name="vase_detect_right" output="log">
+            <param name="vision_topic" value="$(arg right_topic)" />
+            <param name="camera_num" value="$(arg right_camera)" />
+        </node>
+    </group>
+</launch>

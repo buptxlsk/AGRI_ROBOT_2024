@@ -1,0 +1,29 @@
+<launch>
+    <arg name="left_topic" default="/distance_data_left" />
+    <arg name="right_topic" default="/distance_data_right" />
+    <arg name="left_port" default="/dev/ttyUSB1" />
+    <arg name="right_port" default="/dev/ttyUSB2" />
+    <arg name="baud_rate" default="115200" />
+    
+    <group ns="left">
+        <param name="port" value="$(arg left_port)" />
+        <param name="baud_rate" value="$(arg baud_rate)" />
+        <param name="topic" value="$(arg left_topic)" />
+        <node pkg="serial_distance_reader" type="serial_distance_reader_node" name="serial_distance_reader_left" output="screen">
+            <param name="port" value="$(arg left_port)" />
+            <param name="baud_rate" value="$(arg baud_rate)" />
+            <param name="topic" value="$(arg left_topic)" />
+        </node>
+    </group>
+    
+    <group ns="right">
+        <param name="port" value="$(arg right_port)" />
+        <param name="baud_rate" value="$(arg baud_rate)" />
+        <param name="topic" value="$(arg right_topic)" />
+        <node pkg="serial_distance_reader" type="serial_distance_reader_node" name="serial_distance_reader_right" output="screen">
+            <param name="port" value="$(arg right_port)" />
+            <param name="baud_rate" value="$(arg baud_rate)" />
+            <param name="topic" value="$(arg right_topic)" />
+        </node>
+    </group>
+</launch>

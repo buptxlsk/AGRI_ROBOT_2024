@@ -1,0 +1,4 @@
+<launch>
+    <node pkg="cross_detect" type="cross_pub.py" name="cross_detect" output="screen">
+    </node>
+</launch>
