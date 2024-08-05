@@ -1,10 +1,10 @@
 <launch>
   <!-- 启动 imu_translate_node -->
-  <node name="imu_translate_node" pkg="imu_translate_node" type="imu_translate_node" output="screen" />
+  <node name="imu_translate_node" pkg="imu_translate_node" type="imu_translate_node" output="log" />
 
   <!-- 启动 heading_lock_node -->
-  <node name="heading_lock_node" pkg="imu_translate_node" type="heading_lock_node" output="screen" />
+  <node name="heading_lock_node" pkg="imu_translate_node" type="heading_lock_node" output="log" />
 
   <!-- 启动 demo_yaw_publisher_node -->
-  <node name="demo_yaw_publisher_node" pkg="imu_translate_node" type="demo_yaw_publisher_node" output="screen" />
+  <node name="demo_yaw_publisher_node" pkg="imu_translate_node" type="demo_yaw_publisher_node" output="log" />
 </launch>

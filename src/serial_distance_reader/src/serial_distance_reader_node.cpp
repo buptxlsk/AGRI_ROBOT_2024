@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     string port;
     int baud_rate;
     string topic;
-
+    
     nh.param("port", port, string("/dev/ttyUSB1"));
     nh.param("baud_rate", baud_rate, 115200);
     nh.param("topic", topic, string("/distance_data"));

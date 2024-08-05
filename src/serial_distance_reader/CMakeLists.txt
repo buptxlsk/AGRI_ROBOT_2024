@@ -202,8 +202,13 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 add_executable(serial_distance_reader_node src/serial_distance_reader_node.cpp)
+add_executable(distance_judge_node src/distance_judge_node.cpp)
 
 target_link_libraries(serial_distance_reader_node
+  ${catkin_LIBRARIES}
+  ${Boost_LIBRARIES}
+)
+target_link_libraries(distance_judge_node
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
 )

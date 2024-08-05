@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import String
+from std_msgs.msg import Int32
 import cv2
 from ultralytics import YOLO
 from collections import Counter
@@ -13,11 +13,11 @@ def main():
     vision_topic = rospy.get_param('~vision_topic')
     camera_num = rospy.get_param('~camera_num')
 
-    pub = rospy.Publisher(vision_topic, String, queue_size=10)
+    pub = rospy.Publisher(vision_topic, Int32, queue_size=10)
     rate = rospy.Rate(10)  # 10 Hz
 
     # 初始化YOLOv8模型
-    model = YOLO('/home/user/AGRI_2024/src/yolo_detection/weights/best.pt')  # 使用YOLOv8n的预训练模型，可以根据需要更换模型
+    model = YOLO('/home/user/AGRI_ROBOT_2024/src/yolo_detection/weights/best.pt')
 
     # 打开摄像头
     cap = cv2.VideoCapture(camera_num)
@@ -27,6 +27,14 @@ def main():
 
     frame_count = 0
     detections = []
+
+    # 类别映射字典
+    class_mapping = {
+        'VASE': 1,
+        'VASE_GREEN': 2,
+        'VASE_BLUE': 3,
+        'VASE_RED': 4,
+    }
 
     while not rospy.is_shutdown():
         # 读取帧
@@ -83,7 +91,7 @@ def main():
         if frame_count % 10 == 0:
             if detections:
                 most_common_detection = Counter(detections).most_common(1)[0][0]
-                detection_message = f"{most_common_detection}"
+                detection_message = class_mapping.get(most_common_detection, 0) 
                 rospy.loginfo(detection_message)
                 pub.publish(detection_message)
             detections = []  # 重置检测结果

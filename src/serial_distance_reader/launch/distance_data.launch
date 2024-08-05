@@ -1,29 +1,49 @@
 <launch>
     <arg name="left_topic" default="/distance_data_left" />
     <arg name="right_topic" default="/distance_data_right" />
+    <arg name="left_vase_detect" default="/vase_detect_left"/>
+    <arg name="right_vase_detect" default="/vase_detect_right"/>
+    <arg name="left_vase" default="/vase_left"/>
+    <arg name="right_vase" default="/vase_right"/>
     <arg name="left_port" default="/dev/ttyUSB1" />
     <arg name="right_port" default="/dev/ttyUSB2" />
     <arg name="baud_rate" default="115200" />
-    
+
+
     <group ns="left">
         <param name="port" value="$(arg left_port)" />
         <param name="baud_rate" value="$(arg baud_rate)" />
         <param name="topic" value="$(arg left_topic)" />
+        <param name="distance_sub" value="$(arg left_topic)"/>
+        <param name="vase_detect" value="$(arg left_vase_detect)"/>
+        <param name="vase_info" value="$(arg left_vase)"/>
         <node pkg="serial_distance_reader" type="serial_distance_reader_node" name="serial_distance_reader_left" output="screen">
             <param name="port" value="$(arg left_port)" />
             <param name="baud_rate" value="$(arg baud_rate)" />
             <param name="topic" value="$(arg left_topic)" />
         </node>
+        <node pkg="serial_distance_reader" type="distance_judge_node" name="distance_judge_left" output="screen">
+            <param name="distance_sub" value="$(arg left_topic)"/>
+            <param name="vase_detect" value="$(arg left_vase_detect)"/>
+            <param name="vase_info" value="$(arg left_vase)"/>
+        </node>
     </group>
-    
     <group ns="right">
         <param name="port" value="$(arg right_port)" />
         <param name="baud_rate" value="$(arg baud_rate)" />
         <param name="topic" value="$(arg right_topic)" />
+        <param name="distance_sub" value="$(arg right_topic)"/>
+        <param name="vase_detect" value="$(arg right_vase_detect)"/>
+        <param name="vase_info" value="$(arg right_vase)"/>
         <node pkg="serial_distance_reader" type="serial_distance_reader_node" name="serial_distance_reader_right" output="screen">
             <param name="port" value="$(arg right_port)" />
             <param name="baud_rate" value="$(arg baud_rate)" />
             <param name="topic" value="$(arg right_topic)" />
+        </node>
+        <node pkg="serial_distance_reader" type="distance_judge_node" name="distance_judge_right" output="screen">
+            <param name="distance_sub" value="$(arg right_topic)"/>
+            <param name="vase_detect" value="$(arg right_vase_detect)"/>
+            <param name="vase_info" value="$(arg right_vase)"/>
         </node>
     </group>
 </launch>

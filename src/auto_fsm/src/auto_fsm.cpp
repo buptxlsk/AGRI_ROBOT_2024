@@ -11,8 +11,8 @@
 #include <std_msgs/UInt16MultiArray.h>
 #include "pid.h"
 
-#define WHITECROSS 0  //ç™½åå­—
-#define VASE 1  //èŠ±ç“¶
+#define WHITECROSS 0  //°×Ê®×Ö
+#define VASE 1  //»¨Æ¿
 #define VASE_GREEN 2
 #define VASE_BLUE 3
 #define VASE_RED 4
@@ -62,20 +62,18 @@ private:
     STATE current_state;
     ros::NodeHandle nh;
     ros::Subscriber cross_vision_sub;
-    ros::Subscriber imu_sub;
-    ros::Subscriber distance_sub_left;//dt35è®¢é˜…left
-    ros::Subscriber distance_sub_right;//dt35è®¢é˜…right
+    ros::Subscriber imu_sub; 
     ros::Publisher target_vel_pub;
     ros::Subscriber vase_vision_sub_left;
     ros::Subscriber vase_vision_sub_right;
     ros::Subscriber get_drought_level_sub;
-    double target_vel;     //ç›®æ ‡é€Ÿåº¦å€¼ï¼Œlinear.x 
+    double target_vel;     //Ä¿±êËÙ¶ÈÖµ£¬linear.x 
     geometry_msgs::Twist target_vel_twist;
-    int rotate_count;  //ç”¨äºæ‘†è„±åå­—è¯†åˆ«
+    int rotate_count;  //ÓÃÓÚ°ÚÍÑÊ®×ÖÊ¶±ğ
     double target_rotate_vel;
-    double yaw; //ç”¨äºèµ°ç›´çº¿
+    double yaw; //ÓÃÓÚ×ßÖ±Ïß
     bool start_flag;
-
+    double move_speed = 0.05;//Õı³£ÒÆ¶¯ËÙ¶È
     bool start_flag2;
 
     PID pid;
@@ -92,8 +90,6 @@ public:
         vase_vision_sub_right = nh.subscribe("/vase_detect_right", 10, &FSM::vase_vision_right_callback, this);
         target_vel_pub = nh.advertise<geometry_msgs::Twist>("/target_vel_pub", 10);
         get_drought_level_sub = nh.subscribe("/tcp_data", 10, &FSM::get_drought_level_callback, this);
-        distance_sub_left = nh.subscribe("/distance_data_left",10,&FSM::distance_reader_left_callback,this);
-        distance_sub_right = nh.subscribe("/distance_data_right",10,&FSM::distance_reader_right_callback,this);
 
         target_vel = default_vel;
         target_rotate_vel = default_rotate_vel;
@@ -123,8 +119,11 @@ public:
 
     void vase_vision_left_callback(const std_msgs::Int32::ConstPtr &msg)
     {
-
-        if (msg->data == VASE_BLUE)
+        if (msg->data == VASE) {
+            FSM_next_state(STOP_TO_WATER_LEFT);
+            ROS_INFO("LEFT_VASE_DETECT");
+        }
+        else if (msg->data == VASE_BLUE)
         {
             FSM_next_state(STOP_TO_WATER_LEFT);
             curVaseColor = VASE_BLUE;
@@ -146,40 +145,31 @@ public:
 
     void vase_vision_right_callback(const std_msgs::Int32::ConstPtr &msg)
     {
-        if (msg->data == VASE_BLUE)
+        if (msg->data == VASE) {
+            FSM_next_state(STOP_TO_WATER_RIGHT);
+            ROS_INFO("VASE_DETECT");
+        }
+        else if (msg->data == VASE_BLUE)
         {
-            FSM_next_state(STOP_TO_WATER_LEFT);
+            FSM_next_state(STOP_TO_WATER_RIGHT);
             curVaseColor = VASE_BLUE;
             ROS_INFO("RIGHT_VASE_BLUE_DETECT");
         }
         else if (msg->data == VASE_GREEN)
         {
-            FSM_next_state(STOP_TO_WATER_LEFT);
+            FSM_next_state(STOP_TO_WATER_RIGHT);
             curVaseColor = VASE_GREEN;
             ROS_INFO("RIGHT_VASE_GREEN_DETECT");
         }
         else if (msg->data == VASE_RED)
         {
-            FSM_next_state(STOP_TO_WATER_LEFT);
+            FSM_next_state(STOP_TO_WATER_RIGHT);
             curVaseColor = VASE_RED;
             ROS_INFO("RIGHT_VASE_RED_DETECT");
         }
     }
 
-    void distance_reader_left_callback(const std_msgs::Float32::ConstPtr &msg)
-    {
-        if(msg->data >=DISTANCE_MIN&&msg->data <= (DISTANCE_MIN+0.2)){
-            FSM_next_state(STOP_TO_WATER_LEFT);
-            ROS_INFO("VASE_DETECT");
-        }
-    }
-        void distance_reader_right_callback(const std_msgs::Float32::ConstPtr &msg)
-    {
-        if(msg->data >=DISTANCE_MIN&&msg->data <= (DISTANCE_MIN+0.2)){
-            FSM_next_state(STOP_TO_WATER_RIGHT);
-            ROS_INFO("VASE_DETECT");
-        }
-    }
+
     void get_drought_level_callback(const std_msgs::UInt8MultiArray::ConstPtr &msg)
     {
         if (msg->data[0] == 252 && msg->data[19] == 254)
@@ -220,7 +210,7 @@ public:
                     ROS_INFO("SWITCH_TO_MOVE");
                     if(current_state == ROTATE)
                     {
-                        target_vel_twist.linear.x = 0.1;
+                        target_vel_twist.linear.x = 0.005;
                         target_vel_twist.linear.z = 1;
                         target_vel_pub.publish(target_vel_twist);
                         ros::Duration(0.5).sleep();
@@ -289,9 +279,9 @@ public:
             case MOVE:
                 {
                     nh.getParam("/yaw", yaw);
-                    target_vel_twist.linear.x = 0.1;
+                    target_vel_twist.linear.x = 0.005;
                     target_vel_twist.angular.z = pid.calc_output(last_yaw, yaw, true);
-                    __LIMIT(target_vel_twist.angular.z, 0.05);
+                    __LIMIT(target_vel_twist.angular.z, 0.01);
                     target_vel_pub.publish(target_vel_twist);
                     break;
                 }
@@ -313,7 +303,7 @@ public:
                     ros::spinOnce();
                     break;
                 }
-            case STOP_TO_WATER_LEFT://å¾…å¢åŠ ï¼šä¼¸å‡ºæœºæ¢°è‡‚
+            case STOP_TO_WATER_LEFT://´ıÔö¼Ó£ºÉì³ö»úĞµ±Û
                 {
                     ROS_INFO("STOP_TO_WATER_LEFT");
                     target_vel_twist.linear.x = 0;
@@ -328,7 +318,7 @@ public:
                     FSM_next_state(MOVE);
                     break;
                 }
-            case STOP_TO_WATER_RIGHT://å¾…å¢åŠ ï¼šä¼¸å‡ºæœºæ¢°è‡‚
+            case STOP_TO_WATER_RIGHT://´ıÔö¼Ó£ºÉì³ö»úĞµ±Û
                 {
                     ROS_INFO("STOP_TO_WATER_RIGHT");
                     target_vel_twist.linear.x = 0;
