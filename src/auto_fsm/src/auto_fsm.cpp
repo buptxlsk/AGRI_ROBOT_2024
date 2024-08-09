@@ -1,4 +1,3 @@
-#include <iterator>
 #include <ros/ros.h>
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/Bool.h>
@@ -18,6 +17,11 @@
 #define VASE_RED 4
 #define DISTANCE_MIN 0.2
 
+#define LEFT 1
+#define RIGHT -1 
+
+#define GO_FORWARD 1
+#define GO_BEHIND -1
 double last_yaw;
 int rotate_flag = 0;
 double default_vel = 0.2;
@@ -31,7 +35,9 @@ enum STATE
     MOVE_IN_CORNER,
     STOP_TO_WATER_LEFT,
     STOP_TO_WATER_RIGHT,
-    START
+    START,
+    CROSS_AHEAD,
+    CROSS_BEHIND
 };
 
 // enum DROUGHT_LEVEL
@@ -64,18 +70,24 @@ private:
     ros::Subscriber cross_vision_sub;
     ros::Subscriber imu_sub; 
     ros::Publisher target_vel_pub;
+    ros::Publisher rotate_command_pub;
     ros::Subscriber vase_vision_sub_left;
     ros::Subscriber vase_vision_sub_right;
     ros::Subscriber get_drought_level_sub;
+    ros::Subscriber distance_info_sub_left;//用于获取距离
+    ros::Subscriber distance_info_sub_right;
+    ros::Subscriber rotate_success;
     double target_vel;     //目标速度值，linear.x 
     geometry_msgs::Twist target_vel_twist;
+    std_msgs::Int32 rotate_command;
     int rotate_count;  //用于摆脱十字识别
+    int move_count=0;
     double target_rotate_vel;
     double yaw; //用于走直线
     bool start_flag;
-    double move_speed = 0.05;//正常移动速度
+    double move_speed = 0.005;//正常移动速度
     bool start_flag2;
-
+    float left_distance,right_distance;
     PID pid;
 public:
     FSM(ros::NodeHandle &handle)
@@ -88,13 +100,18 @@ public:
         cross_vision_sub = nh.subscribe("/cross_vision", 10, &FSM::cross_vision_callback, this);
         vase_vision_sub_left = nh.subscribe("/vase_detect_left", 10, &FSM::vase_vision_left_callback, this);
         vase_vision_sub_right = nh.subscribe("/vase_detect_right", 10, &FSM::vase_vision_right_callback, this);
+        distance_info_sub_left = nh.subscribe("/distance_data_left",10,&FSM::distance_info_left_callback,this);
+        distance_info_sub_right = nh.subscribe("/distance_data_right",10,&FSM::distance_info_right_callback,this);
+        rotate_success = nh.subscribe("/rotation_success",10,&FSM::rotate_callback,this);
         target_vel_pub = nh.advertise<geometry_msgs::Twist>("/target_vel_pub", 10);
+        rotate_command_pub = nh.advertise<std_msgs::Int32>("/rotate_command",10);
         get_drought_level_sub = nh.subscribe("/tcp_data", 10, &FSM::get_drought_level_callback, this);
 
         target_vel = default_vel;
         target_rotate_vel = default_rotate_vel;
         nh.setParam("/current_state", current_state);
         nh.setParam("/current_field", curField);
+        nh.setParam("move_speed",move_speed);
         pid.setPID(1.0, 0.0, 0.0);
     }
 
@@ -102,73 +119,109 @@ public:
     {
         if (msg->data == WHITECROSS)
         {
-            FSM_next_state(ROTATE);
-            cross_vision_sub.shutdown();
-            ROS_INFO("WHITECROSS");
+            move_count=1;
             rotate_flag = 1;
+            // cross_vision_sub.shutdown();
+            ROS_INFO("WHITECROSS");
             target_vel_twist.linear.x = 0;
-            target_vel_twist.linear.z = 2;
+            // target_vel_twist.linear.z = 2;
             target_vel_twist.angular.z = 0;
             target_vel_pub.publish(target_vel_twist);
-            target_vel_twist.linear.z = 0;
+            // target_vel_twist.linear.z = 0;
             ros::Duration(0.2).sleep();
+            FSM_next_state(ROTATE);
             nh.setParam("/rotate_flag", rotate_flag);
+
         }
-        
+        if (msg->data==GO_FORWARD)
+        {
+            target_vel_twist.linear.x = 0.002;
+            target_vel_twist.angular.z = pid.calc_output(last_yaw, yaw, true);
+            __LIMIT(target_vel_twist.angular.z, 0.001);
+            ROS_INFO("GO_FORWARD");
+            target_vel_pub.publish(target_vel_twist);
+            FSM_next_state(CROSS_AHEAD);
+        }
+        if(msg->data==GO_BEHIND)
+        {
+            ROS_INFO("GO_BEHIND");
+            target_vel_twist.linear.x=0;
+            target_vel_twist.linear.z=0;
+            target_vel_pub.publish(target_vel_twist);
+            ros::Duration(0.4).sleep();
+            target_vel_twist.linear.x = -0.002;
+            target_vel_twist.angular.z = pid.calc_output(last_yaw,yaw,true);
+            __LIMIT(target_vel_twist.angular.z, 0.001);
+            target_vel_pub.publish(target_vel_twist);
+            FSM_next_state(CROSS_BEHIND);
+        }
     }
 
     void vase_vision_left_callback(const std_msgs::Int32::ConstPtr &msg)
     {
-        if (msg->data == VASE) {
-            FSM_next_state(STOP_TO_WATER_LEFT);
-            ROS_INFO("LEFT_VASE_DETECT");
-        }
-        else if (msg->data == VASE_BLUE)
+        if(move_count==0)
         {
-            FSM_next_state(STOP_TO_WATER_LEFT);
-            curVaseColor = VASE_BLUE;
-            ROS_INFO("LEFT_VASE_BLUE_DETECT");
-        }
-        else if (msg->data == VASE_GREEN)
-        {
-            FSM_next_state(STOP_TO_WATER_LEFT);
-            curVaseColor = VASE_GREEN;
-            ROS_INFO("LEFT_VASE_GREEN_DETECT");
-        }
-        else if (msg->data == VASE_RED)
-        {
-            FSM_next_state(STOP_TO_WATER_LEFT);
-            curVaseColor = VASE_RED;
-            ROS_INFO("LEFT_VASE_RED_DETECT");
+            if (msg->data == VASE) {
+                FSM_next_state(STOP_TO_WATER_LEFT);
+                ROS_INFO("LEFT_VASE_DETECT");
+            }
+            else if (msg->data == VASE_BLUE)
+            {
+                FSM_next_state(STOP_TO_WATER_LEFT);
+                curVaseColor = VASE_BLUE;
+                ROS_INFO("LEFT_VASE_BLUE_DETECT");
+            }
+            else if (msg->data == VASE_GREEN)
+            {
+                FSM_next_state(STOP_TO_WATER_LEFT);
+                curVaseColor = VASE_GREEN;
+                ROS_INFO("LEFT_VASE_GREEN_DETECT");
+            }
+            else if (msg->data == VASE_RED)
+            {
+                FSM_next_state(STOP_TO_WATER_LEFT);
+                curVaseColor = VASE_RED;
+                ROS_INFO("LEFT_VASE_RED_DETECT");
+            }
         }
     }
 
     void vase_vision_right_callback(const std_msgs::Int32::ConstPtr &msg)
     {
-        if (msg->data == VASE) {
-            FSM_next_state(STOP_TO_WATER_RIGHT);
-            ROS_INFO("VASE_DETECT");
-        }
-        else if (msg->data == VASE_BLUE)
+        if(move_count==0)
         {
-            FSM_next_state(STOP_TO_WATER_RIGHT);
-            curVaseColor = VASE_BLUE;
-            ROS_INFO("RIGHT_VASE_BLUE_DETECT");
-        }
-        else if (msg->data == VASE_GREEN)
-        {
-            FSM_next_state(STOP_TO_WATER_RIGHT);
-            curVaseColor = VASE_GREEN;
-            ROS_INFO("RIGHT_VASE_GREEN_DETECT");
-        }
-        else if (msg->data == VASE_RED)
-        {
-            FSM_next_state(STOP_TO_WATER_RIGHT);
-            curVaseColor = VASE_RED;
-            ROS_INFO("RIGHT_VASE_RED_DETECT");
+            if (msg->data == VASE) {
+                FSM_next_state(STOP_TO_WATER_RIGHT);
+                ROS_INFO("VASE_DETECT");
+            }
+            else if (msg->data == VASE_BLUE)
+            {
+                FSM_next_state(STOP_TO_WATER_RIGHT);
+                curVaseColor = VASE_BLUE;
+                ROS_INFO("RIGHT_VASE_BLUE_DETECT");
+            }
+            else if (msg->data == VASE_GREEN)
+            {
+                FSM_next_state(STOP_TO_WATER_RIGHT);
+                curVaseColor = VASE_GREEN;
+                ROS_INFO("RIGHT_VASE_GREEN_DETECT");
+            }
+            else if (msg->data == VASE_RED)
+            {
+                FSM_next_state(STOP_TO_WATER_RIGHT);
+                curVaseColor = VASE_RED;
+                ROS_INFO("RIGHT_VASE_RED_DETECT");
+            }
         }
     }
-
+    void distance_info_left_callback(const std_msgs::Float32::ConstPtr &msg)
+    {
+        left_distance=msg->data;
+    }
+    void distance_info_right_callback(const std_msgs::Float32::ConstPtr &msg)
+    {
+        right_distance=msg->data;
+    }
 
     void get_drought_level_callback(const std_msgs::UInt8MultiArray::ConstPtr &msg)
     {
@@ -190,8 +243,19 @@ public:
         }
     }
     
+    void rotate_callback(const std_msgs::Bool::ConstPtr &msg)
+    {
+        if(msg->data==true){
+            rotate_flag=0;
+            nh.setParam("/rotate_flag",rotate_flag);
+            ROS_INFO("rotate_success");
+            FSM_next_state(ROTATE);
+        }
+    }
+
     void FSM_next_state(STATE next_state)
     {
+        nh.getParam("move_speed",move_speed);
         if (current_state == next_state)
         {
             return;
@@ -210,13 +274,18 @@ public:
                     ROS_INFO("SWITCH_TO_MOVE");
                     if(current_state == ROTATE)
                     {
-                        target_vel_twist.linear.x = 0.005;
+                        target_vel_twist.linear.x = 0;
                         target_vel_twist.linear.z = 1;
                         target_vel_pub.publish(target_vel_twist);
                         ros::Duration(0.5).sleep();
                         cross_vision_sub = nh.subscribe("/cross_vision", 10, &FSM::cross_vision_callback, this);
                     }
                     nh.getParam("/yaw", last_yaw);
+                    break;
+                }
+                case CROSS_AHEAD:
+                {
+                    ROS_INFO("AHEAD_DETECT");
                     break;
                 }
                 case ROTATE:
@@ -227,20 +296,28 @@ public:
                 }
                 case STOP_TO_WATER_LEFT:
                 {   
-                    ROS_INFO("SWITCH_TO_STOP_TO_WATER_LEFT");
-                    target_vel_twist.linear.x = 0;
-                    target_vel_twist.linear.z = 0;
-                    target_vel_twist.angular.z = 0;
-                    target_vel_pub.publish(target_vel_twist);
+                    if(move_count==0){
+                        ROS_INFO("SWITCH_TO_STOP_TO_WATER_LEFT");
+                        target_vel_twist.linear.x = 0;
+                        target_vel_twist.linear.z = 0;
+                        target_vel_twist.angular.z = 0;
+                        target_vel_pub.publish(target_vel_twist);
+                    }
+                                            
+
                     break;
                 }
                 case STOP_TO_WATER_RIGHT:
                 {   
-                    ROS_INFO("SWITCH_TO_STOP_TO_WATER_RIGHT");
-                    target_vel_twist.linear.x = 0;
-                    target_vel_twist.linear.z = 0;
-                    target_vel_twist.angular.z = 0;
-                    target_vel_pub.publish(target_vel_twist);
+                    if(move_count==0)
+                    {
+                        ROS_INFO("SWITCH_TO_STOP_TO_WATER_RIGHT");
+                        target_vel_twist.linear.x = 0;
+                        target_vel_twist.linear.z = 0;
+                        target_vel_twist.angular.z = 0;
+                        target_vel_pub.publish(target_vel_twist);
+                    }
+
                     break;
                 }
                 case MOVE_IN_CORNER:
@@ -248,7 +325,8 @@ public:
                     ROS_INFO("SWITCH_TO_MOVE_IN_CORNER");
                     if(current_state == ROTATE)
                     {
-                        target_vel_twist.linear.x = 0.1;
+                        target_vel_twist.linear.x = move_speed;
+                        target_vel_twist.angular.z =0;
                         target_vel_pub.publish(target_vel_twist);
                         ros::Duration(0.5).sleep();
                         cross_vision_sub = nh.subscribe("/cross_vision", 10, &FSM::cross_vision_callback, this);
@@ -279,7 +357,7 @@ public:
             case MOVE:
                 {
                     nh.getParam("/yaw", yaw);
-                    target_vel_twist.linear.x = 0.005;
+                    target_vel_twist.linear.x = move_speed;
                     target_vel_twist.angular.z = pid.calc_output(last_yaw, yaw, true);
                     __LIMIT(target_vel_twist.angular.z, 0.01);
                     target_vel_pub.publish(target_vel_twist);
@@ -289,58 +367,97 @@ public:
                 {
                     nh.getParam("/rotate_flag", rotate_flag);
                     if (rotate_flag == 0) {
+
                         if(rotate_count % 2 == 0){
                             FSM_next_state(MOVE);
                             curField++;
                             nh.setParam("/current_field", curField);
                             cnt_left=0;
                             cnt_right=0;
+                            move_count=0;
                         }
                         else if(rotate_count % 2 == 1){
                             FSM_next_state(MOVE_IN_CORNER);
                         }
                     }
+                    else
+                    {
+                        if(curField%2 == 0)
+                        {
+                            rotate_command.data = LEFT;
+                            ROS_INFO("TURN_LEFT");     
+                            target_vel_twist.linear.x=0;
+                            // target_vel_twist.linear.z=0;
+                            target_vel_twist.angular.z=-0.01;
+                            target_vel_pub.publish(target_vel_twist);
+                            // rotate_command_pub.publish(rotate_command);
+                        }
+                        else
+                        {
+                            rotate_command.data = RIGHT;
+                            ROS_INFO("TURN_RIGHT");
+                            target_vel_twist.linear.x=0;
+                            // target_vel_twist.linear.z=0;
+                            target_vel_twist.angular.z=0.01;
+                            target_vel_pub.publish(target_vel_twist);
+                            // rotate_command_pub.publish(rotate_command);
+                        }
+                    }
+
                     ros::spinOnce();
+                    break;
+                }
+            case CROSS_AHEAD:
+                {
                     break;
                 }
             case STOP_TO_WATER_LEFT://待增加：伸出机械臂
                 {
-                    ROS_INFO("STOP_TO_WATER_LEFT");
-                    target_vel_twist.linear.x = 0;
-                    if (curField<3) target_vel_twist.linear.y = vase_list[curField][cnt_left];
-                    else target_vel_twist.linear.y = curVaseColor - 1;
-                    target_vel_twist.angular.x = 1;
-                    target_vel_twist.angular.z = 0;
-                    target_vel_pub.publish(target_vel_twist);
-                    target_vel_twist.linear.y = 0;
-                    cnt_left++;
-                    ros::Duration(5).sleep();
-                    FSM_next_state(MOVE);
+
+                        ROS_INFO("STOP_TO_WATER_LEFT");
+                        target_vel_twist.linear.x = 0;
+                        if (curField<3) target_vel_twist.linear.y = vase_list[curField][cnt_left];
+                        else target_vel_twist.linear.y = curVaseColor - 1;
+                        target_vel_twist.angular.y = left_distance;
+                        target_vel_twist.angular.x = 1;
+                        target_vel_twist.angular.z = 0;
+                        target_vel_pub.publish(target_vel_twist);
+                        target_vel_twist.linear.y = 0;
+                        target_vel_twist.angular.y = 0;
+                        cnt_left++;
+                        ros::Duration(5).sleep();
+                        FSM_next_state(MOVE);
+                    
+
                     break;
                 }
             case STOP_TO_WATER_RIGHT://待增加：伸出机械臂
                 {
-                    ROS_INFO("STOP_TO_WATER_RIGHT");
-                    target_vel_twist.linear.x = 0;
-                    if (curField<3) target_vel_twist.linear.y = vase_list[curField][cnt_right];
-                    else target_vel_twist.linear.y = curVaseColor - 1;
-                    target_vel_twist.angular.x = 2;
-                    target_vel_twist.angular.z = 0;
-                    target_vel_pub.publish(target_vel_twist);
-                    target_vel_twist.linear.y = 0;
-                    cnt_right++;
-                    ros::Duration(5).sleep();
-                    FSM_next_state(MOVE);
+                    if(move_count==0)
+                    {
+                        ROS_INFO("STOP_TO_WATER_RIGHT");
+                        target_vel_twist.linear.x = 0;
+                        if (curField<3) target_vel_twist.linear.y = vase_list[curField][cnt_right];
+                        else target_vel_twist.linear.y = curVaseColor - 1;
+                        target_vel_twist.angular.y = right_distance;
+                        target_vel_twist.angular.x = 2;
+                        target_vel_twist.angular.z = 0;
+                        target_vel_pub.publish(target_vel_twist);
+                        target_vel_twist.linear.y = 0;
+                        target_vel_twist.angular.y = 0;
+                        cnt_right++;
+                        ros::Duration(5).sleep();
+                        FSM_next_state(MOVE);
+                    }
                     break;
                 }
             case MOVE_IN_CORNER:
                 {
-                    ROS_INFO("MOVE_IN_CORNER at speed %f", target_vel);
+                    move_count=1;
                     nh.getParam("/yaw", yaw);
-                    target_vel_twist.linear.x = 0.1;
-                    ROS_INFO("%f", yaw - last_yaw);
+                    target_vel_twist.linear.x = move_speed;
                     target_vel_twist.angular.z = pid.calc_output(last_yaw, yaw, true);
-                    __LIMIT(target_vel_twist.angular.z, 0.05);
+                    __LIMIT(target_vel_twist.angular.z, 0.005);
                     target_vel_pub.publish(target_vel_twist);
                     break;
                 }

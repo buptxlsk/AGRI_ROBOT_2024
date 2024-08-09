@@ -1,8 +1,8 @@
 <launch>
     <arg name="ahead_topic" default="/grayscale_data_ahead" />
     <arg name="behind_topic" default="/grayscale_data_behind" />
-    <arg name="ahead_port" default="/dev/ttyUSB3" />
-    <arg name="behind_port" default="/dev/ttyUSB4" />
+    <arg name="ahead_port" default="/dev/gray_ahead" />
+    <arg name="behind_port" default="/dev/gray_behind" />
     <arg name="baud_rate" default="9600" />
 
     <group ns="ahead">

@@ -1,5 +1,5 @@
 #hipnuc config
-imu_serial: "/dev/ttyUSB3"
+imu_serial: "/dev/imu"
 baud_rate: 115200
 frame_id: "base_link"
 imu_topic: "/IMU_data"

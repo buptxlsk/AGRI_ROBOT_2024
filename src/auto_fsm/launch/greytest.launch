@@ -1,0 +1,9 @@
+<launch>
+ <!--  <include file="$(find rosserial_manager)/launch/serialNodeBringUp.launch"></include>--> 
+    <!-- <include file="$(find fdilink_ahrs)/launch/ahrs_data.launch"></include> -->
+    <include file="$(find grayscale_sensor_reader)/launch/grayscale_data.launch"></include>
+    <include file="$(find cross_detect)/launch/cross_detect.launch"></include>
+    <node pkg="auto_fsm" type="auto_fsm_node" name="auto_fsm_node" output="screen" />
+    <!-- <node pkg="hipnuc_imu" type="imu_translate_node" name="imu_translate_node" output="screen" /> -->
+    <!-- <node pkg="wlan_socket" type="main.py" name="wlan_socket" output="screen" /> -->
+</launch>

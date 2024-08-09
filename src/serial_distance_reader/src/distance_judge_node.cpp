@@ -6,7 +6,7 @@
 #include <std_msgs/Int32.h>
 #include <string.h>
 
-#define edge_DISTANCE 0.3
+#define EDGE_DISTANCE 0.25
 #define VASE 1
 #define VASE_GREEN 2
 #define VASE_BLUE 3
@@ -22,6 +22,7 @@ class DIS
     string topic_vase_info,topic_vase_detect,topic_distance_sub;
     float distance_min,distance_round,now_dis,last_distance,min_dis=1;
     std_msgs::Int32 vase_condition;
+    double distance_edge=0.25;
     bool is_vase=false;
     int curField;
     ros::Time now_time,begin_time;
@@ -32,8 +33,7 @@ class DIS
         nh.getParam("distance_sub",topic_distance_sub);
         nh.getParam("vase_detect",topic_vase_detect);
         nh.getParam("vase_info",topic_vase_info);
-        nh.getParam("distance_min",distance_min);
-        nh.getParam("distance_round",distance_round);
+        // nh.getParam("distance_egde",distance_edge);
         distance_sub = nh.subscribe(topic_distance_sub,10,&DIS::distance_reader_callback,this);
         vase_sub = nh.subscribe(topic_vase_info,10,&DIS::vase_get_callback,this);
         vase_detect_pub = nh.advertise<std_msgs::Int32>(topic_vase_detect,10);
@@ -41,7 +41,7 @@ class DIS
     void distance_reader_callback(const std_msgs::Float32::ConstPtr &msg)
     {
         now_dis = msg->data;
-        if(msg->data <=edge_DISTANCE){
+        if(msg->data <= distance_edge){
             vase_condition.data = VASE;
             // if (min_dis>now_dis) {
             //     min_dis = now_dis;
@@ -55,7 +55,7 @@ class DIS
             // if (now_dis> min_dis+0.005&&is_vase == false) {
             // }
         }
-        if(msg->data>=edge_DISTANCE){
+        if(msg->data>= distance_edge){
             is_vase = false;
             min_dis = 1;
         }

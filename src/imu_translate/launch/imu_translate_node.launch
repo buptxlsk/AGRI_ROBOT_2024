@@ -7,4 +7,5 @@
 
   <!-- 启动 demo_yaw_publisher_node -->
   <node name="demo_yaw_publisher_node" pkg="imu_translate_node" type="demo_yaw_publisher_node" output="log" />
+  <node name="rotate_90_degrees_node" pkg="imu_translate_node" type="rotate_90_degrees_node" output="log"/>
 </launch>

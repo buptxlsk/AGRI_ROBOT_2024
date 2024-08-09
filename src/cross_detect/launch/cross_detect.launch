@@ -1,4 +1,8 @@
 <launch>
-    <node pkg="cross_detect" type="cross_pub.py" name="cross_detect" output="screen">
+    <arg name="ahead_topic" default="/grayscale_data_ahead" />
+    <arg name="behind_topic" default="/grayscale_data_behind" />
+    <param name="gray_topic_ahead" value="$(arg ahead_topic)" />
+    <param name="gray_topic_behind" value="$(arg behind_topic)" />
+    <node pkg="cross_detect" type="cross_detect_node" name="cross_detect" output="screen">
     </node>
 </launch>
