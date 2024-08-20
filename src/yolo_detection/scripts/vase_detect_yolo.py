@@ -14,10 +14,10 @@ def main():
     camera_num = rospy.get_param('~camera_num')
 
     pub = rospy.Publisher(vision_topic, Int32, queue_size=10)
-    rate = rospy.Rate(10)  # 10 Hz
+    rate = rospy.Rate(1000)  # 10 Hz
 
     # 初始化YOLOv8模型
-    model = YOLO('/home/user/AGRI_ROBOT_2024/src/yolo_detection/weights/best.pt')
+    model = YOLO('/home/bupt-rc/AGRI_ROBOT_2024/src/yolo_detection/weights/best.pt')
 
     # 打开摄像头
     cap = cv2.VideoCapture(camera_num)

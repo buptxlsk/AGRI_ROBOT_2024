@@ -1,8 +1,8 @@
 <launch>
     <arg name="left_topic" default="/vase_left" />
     <arg name="right_topic" default="/vase_right" />
-    <arg name="left_camera" default="0"/>
-    <arg name="right_camera" default="2"/>
+    <arg name="left_camera" default="1"/>
+    <arg name="right_camera" default="3"/>
     
     <group ns="left">
         <param name="vision_topic" value="$(arg left_topic)" />

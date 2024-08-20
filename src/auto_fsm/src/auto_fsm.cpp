@@ -8,10 +8,11 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <std_msgs/UInt8MultiArray.h>
 #include <std_msgs/UInt16MultiArray.h>
+
 #include "pid.h"
 
-#define WHITECROSS 0  //白十字
-#define VASE 1  //花瓶
+#define WHITECROSS 0  
+#define VASE 1  
 #define VASE_GREEN 2
 #define VASE_BLUE 3
 #define VASE_RED 4
@@ -56,8 +57,8 @@ int vase_list[3][6]={
     //{SLIGHT, SLIGHT, NORMAL, NORMAL, SERIOUS, SERIOUS},
     //{SLIGHT, SLIGHT, NORMAL, NORMAL, SERIOUS, SERIOUS},
      {1,2,3,1,2,3},
-     {1,1,2,3,2,3},
-     {2,3,1,1,3,2}
+     {3,2,1,3,2,1},
+     {1,2,1,2,1,2}
 };
 int curField = 0,cnt_left = 0, cnt_right = 0;
 int curVaseColor = 0;
@@ -71,21 +72,23 @@ private:
     ros::Subscriber imu_sub; 
     ros::Publisher target_vel_pub;
     ros::Publisher rotate_command_pub;
+    ros::Publisher rotate_reset_pub;
     ros::Subscriber vase_vision_sub_left;
     ros::Subscriber vase_vision_sub_right;
     ros::Subscriber get_drought_level_sub;
-    ros::Subscriber distance_info_sub_left;//用于获取距离
+    ros::Subscriber distance_info_sub_left;
     ros::Subscriber distance_info_sub_right;
     ros::Subscriber rotate_success;
-    double target_vel;     //目标速度值，linear.x 
+    double target_vel;     
     geometry_msgs::Twist target_vel_twist;
     std_msgs::Int32 rotate_command;
-    int rotate_count;  //用于摆脱十字识别
+    std_msgs::Bool rotate_reset;
+    int rotate_count;  
     int move_count=0;
     double target_rotate_vel;
-    double yaw; //用于走直线
+    double yaw; 
     bool start_flag;
-    double move_speed = 0.005;//正常移动速度
+    double move_speed = 0.005;
     bool start_flag2;
     float left_distance,right_distance;
     PID pid;
@@ -105,8 +108,9 @@ public:
         rotate_success = nh.subscribe("/rotation_success",10,&FSM::rotate_callback,this);
         target_vel_pub = nh.advertise<geometry_msgs::Twist>("/target_vel_pub", 10);
         rotate_command_pub = nh.advertise<std_msgs::Int32>("/rotate_command",10);
+        rotate_reset_pub = nh.advertise<std_msgs::Bool>("/rotation_success",10);
         get_drought_level_sub = nh.subscribe("/tcp_data", 10, &FSM::get_drought_level_callback, this);
-
+        // cross_vision_sub.shutdown();
         target_vel = default_vel;
         target_rotate_vel = default_rotate_vel;
         nh.setParam("/current_state", current_state);
@@ -121,26 +125,38 @@ public:
         {
             move_count=1;
             rotate_flag = 1;
+            nh.setParam("/rotate_flag",rotate_flag);
             // cross_vision_sub.shutdown();
             ROS_INFO("WHITECROSS");
             target_vel_twist.linear.x = 0;
             // target_vel_twist.linear.z = 2;
             target_vel_twist.angular.z = 0;
             target_vel_pub.publish(target_vel_twist);
+            // nh.getParam("/yaw", last_yaw);
+
             // target_vel_twist.linear.z = 0;
-            ros::Duration(0.2).sleep();
+            ros::Duration(0.5).sleep();
             FSM_next_state(ROTATE);
             nh.setParam("/rotate_flag", rotate_flag);
-
+            
         }
         if (msg->data==GO_FORWARD)
         {
+            // nh.getParam("/yaw", last_yaw);
             target_vel_twist.linear.x = 0.002;
             target_vel_twist.angular.z = pid.calc_output(last_yaw, yaw, true);
-            __LIMIT(target_vel_twist.angular.z, 0.001);
+            __LIMIT(target_vel_twist.angular.z, 0.005);
             ROS_INFO("GO_FORWARD");
             target_vel_pub.publish(target_vel_twist);
-            FSM_next_state(CROSS_AHEAD);
+            if(curField==3)
+            {
+                ROS_INFO("STOP_READY");
+                ros::Duration(5.0).sleep();
+                
+                FSM_next_state(STOP);
+            }
+            else  FSM_next_state(CROSS_AHEAD);
+
         }
         if(msg->data==GO_BEHIND)
         {
@@ -151,7 +167,7 @@ public:
             ros::Duration(0.4).sleep();
             target_vel_twist.linear.x = -0.002;
             target_vel_twist.angular.z = pid.calc_output(last_yaw,yaw,true);
-            __LIMIT(target_vel_twist.angular.z, 0.001);
+            __LIMIT(target_vel_twist.angular.z, 0.005);
             target_vel_pub.publish(target_vel_twist);
             FSM_next_state(CROSS_BEHIND);
         }
@@ -249,7 +265,6 @@ public:
             rotate_flag=0;
             nh.setParam("/rotate_flag",rotate_flag);
             ROS_INFO("rotate_success");
-            FSM_next_state(ROTATE);
         }
     }
 
@@ -275,12 +290,51 @@ public:
                     if(current_state == ROTATE)
                     {
                         target_vel_twist.linear.x = 0;
-                        target_vel_twist.linear.z = 1;
+                        // target_vel_twist.linear.z = 1;
+                        target_vel_twist.angular.z = 0;
+                        target_vel_pub.publish(target_vel_twist);
+                        ros::Duration(0.5).sleep();
+                        if(curField==3)target_vel_twist.angular.x = 3;
                         target_vel_pub.publish(target_vel_twist);
                         ros::Duration(0.5).sleep();
                         cross_vision_sub = nh.subscribe("/cross_vision", 10, &FSM::cross_vision_callback, this);
                     }
-                    nh.getParam("/yaw", last_yaw);
+                    // cross_vision_sub.shutdown();
+                    // if(!((cnt_right>=1&&cnt_right<5)||(cnt_left>=1&&cnt_left<5)))
+                    // {
+                    //     nh.getParam("/yaw", last_yaw);
+                    //     ROS_INFO("get last_yaw");
+                    //     ROS_INFO("%f", last_yaw);
+
+                    // }
+                    if(cnt_left <= 0&&cnt_right <= 0)
+                    {
+                        nh.getParam("/yaw", last_yaw);
+                        ROS_INFO("get_yaw");
+                    }
+
+
+                    
+                    
+                    if(cnt_left>=5||cnt_right>=5)
+                    {
+                        ROS_INFO("start_cross");
+                        cross_vision_sub = nh.subscribe("/cross_vision", 10, &FSM::cross_vision_callback, this);
+                        rotate_reset.data = false;
+                        rotate_reset_pub.publish(rotate_reset);
+                    } 
+                    else if(curField==3&&(cnt_left>=3||cnt_right>=3))
+                    {
+                        ROS_INFO("finish_cross");
+                        cross_vision_sub = nh.subscribe("/cross_vision", 10, &FSM::cross_vision_callback, this);
+                        rotate_reset.data = false;
+                        rotate_reset_pub.publish(rotate_reset);
+                        
+                    }
+                    else
+                    {
+                        cross_vision_sub.shutdown();                        
+                    }
                     break;
                 }
                 case CROSS_AHEAD:
@@ -297,9 +351,11 @@ public:
                 case STOP_TO_WATER_LEFT:
                 {   
                     if(move_count==0){
+                        if(curField==1)ros::Duration(2.0).sleep();
+                        else ros::Duration(0.5).sleep();
                         ROS_INFO("SWITCH_TO_STOP_TO_WATER_LEFT");
                         target_vel_twist.linear.x = 0;
-                        target_vel_twist.linear.z = 0;
+                        // target_vel_twist.linear.z = 0;
                         target_vel_twist.angular.z = 0;
                         target_vel_pub.publish(target_vel_twist);
                     }
@@ -311,9 +367,11 @@ public:
                 {   
                     if(move_count==0)
                     {
+                        if(curField==1)ros::Duration(2.0).sleep();
+                        else ros::Duration(0.5).sleep();
                         ROS_INFO("SWITCH_TO_STOP_TO_WATER_RIGHT");
                         target_vel_twist.linear.x = 0;
-                        target_vel_twist.linear.z = 0;
+                        // target_vel_twist.linear.z = 0;
                         target_vel_twist.angular.z = 0;
                         target_vel_pub.publish(target_vel_twist);
                     }
@@ -351,7 +409,9 @@ public:
                     ROS_INFO("STOP");
                     target_vel_twist.linear.x = 0;
                     target_vel_twist.angular.z = 0;
+                    target_vel_twist.angular.x = 4;
                     target_vel_pub.publish(target_vel_twist);
+                    while(1){}
                     break;
                 }
             case MOVE:
@@ -369,11 +429,12 @@ public:
                     if (rotate_flag == 0) {
 
                         if(rotate_count % 2 == 0){
-                            FSM_next_state(MOVE);
                             curField++;
-                            nh.setParam("/current_field", curField);
                             cnt_left=0;
                             cnt_right=0;
+                            FSM_next_state(MOVE);
+                            nh.setParam("/current_field", curField);
+
                             move_count=0;
                         }
                         else if(rotate_count % 2 == 1){
@@ -382,23 +443,23 @@ public:
                     }
                     else
                     {
-                        if(curField%2 == 0)
+                        if(curField%2 == 1)
                         {
                             rotate_command.data = LEFT;
-                            ROS_INFO("TURN_LEFT");     
+                            // ROS_INFO("TURN_LEFT");     
                             target_vel_twist.linear.x=0;
                             // target_vel_twist.linear.z=0;
-                            target_vel_twist.angular.z=-0.01;
+                            target_vel_twist.angular.z=0.003;
                             target_vel_pub.publish(target_vel_twist);
                             // rotate_command_pub.publish(rotate_command);
                         }
                         else
                         {
                             rotate_command.data = RIGHT;
-                            ROS_INFO("TURN_RIGHT");
+                            // ROS_INFO("TURN_RIGHT");
                             target_vel_twist.linear.x=0;
                             // target_vel_twist.linear.z=0;
-                            target_vel_twist.angular.z=0.01;
+                            target_vel_twist.angular.z=-0.003;
                             target_vel_pub.publish(target_vel_twist);
                             // rotate_command_pub.publish(rotate_command);
                         }
@@ -411,19 +472,23 @@ public:
                 {
                     break;
                 }
-            case STOP_TO_WATER_LEFT://待增加：伸出机械臂
+            case STOP_TO_WATER_LEFT:
                 {
 
                         ROS_INFO("STOP_TO_WATER_LEFT");
                         target_vel_twist.linear.x = 0;
-                        if (curField<3) target_vel_twist.linear.y = vase_list[curField][cnt_left];
+                        if (curField<3&&cnt_left<=5) target_vel_twist.linear.y = vase_list[curField][cnt_left];
                         else target_vel_twist.linear.y = curVaseColor - 1;
                         target_vel_twist.angular.y = left_distance;
                         target_vel_twist.angular.x = 1;
                         target_vel_twist.angular.z = 0;
                         target_vel_pub.publish(target_vel_twist);
+                        ros::Duration(0.1).sleep();
+                        target_vel_pub.publish(target_vel_twist);
                         target_vel_twist.linear.y = 0;
+                        target_vel_twist.angular.x = 0;
                         target_vel_twist.angular.y = 0;
+                        if(cnt_left>cnt_right)cnt_right = cnt_left;
                         cnt_left++;
                         ros::Duration(5).sleep();
                         FSM_next_state(MOVE);
@@ -431,24 +496,29 @@ public:
 
                     break;
                 }
-            case STOP_TO_WATER_RIGHT://待增加：伸出机械臂
+            case STOP_TO_WATER_RIGHT:
                 {
-                    if(move_count==0)
-                    {
-                        ROS_INFO("STOP_TO_WATER_RIGHT");
-                        target_vel_twist.linear.x = 0;
-                        if (curField<3) target_vel_twist.linear.y = vase_list[curField][cnt_right];
-                        else target_vel_twist.linear.y = curVaseColor - 1;
-                        target_vel_twist.angular.y = right_distance;
-                        target_vel_twist.angular.x = 2;
-                        target_vel_twist.angular.z = 0;
-                        target_vel_pub.publish(target_vel_twist);
-                        target_vel_twist.linear.y = 0;
-                        target_vel_twist.angular.y = 0;
-                        cnt_right++;
-                        ros::Duration(5).sleep();
-                        FSM_next_state(MOVE);
-                    }
+
+                    ROS_INFO("STOP_TO_WATER_RIGHT");
+                    target_vel_twist.linear.x = 0;
+                    if (curField<3&&cnt_right<=5) target_vel_twist.linear.y = vase_list[curField][cnt_right];
+                    else target_vel_twist.linear.y = curVaseColor - 1;
+                    target_vel_twist.angular.y = right_distance;
+                    // if(curField<3)target_vel_twist.angular.x = 3;
+                    // else 
+                    target_vel_twist.angular.x = 2;
+                    target_vel_twist.angular.z = 0;
+                    target_vel_pub.publish(target_vel_twist);
+                    ros::Duration(0.1).sleep();
+                    target_vel_pub.publish(target_vel_twist);
+                    target_vel_twist.linear.y = 0;
+                    target_vel_twist.angular.x = 0;
+                    target_vel_twist.angular.y = 0;
+                    if(cnt_right>cnt_left)cnt_left = cnt_right;
+                    cnt_right++;
+                    ros::Duration(5).sleep();
+                    FSM_next_state(MOVE);
+                
                     break;
                 }
             case MOVE_IN_CORNER:
@@ -457,7 +527,7 @@ public:
                     nh.getParam("/yaw", yaw);
                     target_vel_twist.linear.x = move_speed;
                     target_vel_twist.angular.z = pid.calc_output(last_yaw, yaw, true);
-                    __LIMIT(target_vel_twist.angular.z, 0.005);
+                    __LIMIT(target_vel_twist.angular.z, 0.01);
                     target_vel_pub.publish(target_vel_twist);
                     break;
                 }
@@ -493,7 +563,6 @@ int main(int argc, char **argv)
     nh.getParam("/yaw", last_yaw);
     ROS_INFO("%f", last_yaw);
     ROS_INFO("FSM start");
-    
     while (ros::ok())
     {
         ros::spinOnce();

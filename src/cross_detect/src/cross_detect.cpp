@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+
 #include <std_msgs/String.h>
 #include <std_msgs/Int32.h>
 #include <std_msgs/Bool.h>
@@ -14,10 +15,10 @@ class CROSS
 {
 private:
     ros::Subscriber grayscale_info_ahead;
-    ros::Subscriber grayscale_info_behind;//data[0]无效,右起为第位
+    ros::Subscriber grayscale_info_behind;
     ros::Publisher cross_vision_pub;
     ros::Subscriber rotate_success;
-    int ahead_judge=0,behind_judge=0;//判断遇线光感
+    int ahead_judge=0,behind_judge=0;
     string topic_ahead,topic_behind;
     std_msgs::Int32 cross_detect;
     bool con_ahead=false,con_behind=false,ahead_last=false,behind_last=false;
@@ -37,11 +38,17 @@ public:
     {
         if(msg->data==true)
         {
-            ros::Duration(10).sleep();
             ahead_judge=0;
             behind_judge=0;
             judge=0;
+            ros::Duration(10).sleep();
             ROS_INFO("judge_clear");
+        }
+        else
+        {
+            ahead_judge=0;
+            behind_judge=0;
+            judge=0;
         }
     }
     void cross_info_callback_ahead(const std_msgs::String::ConstPtr &msg)
@@ -54,7 +61,7 @@ public:
             }
 
         }
-        if (count_ahead>=8) {
+        if (count_ahead>=5) {
             con_ahead = true;
             if (ahead_last == false){
                 ahead_judge++;
@@ -75,7 +82,7 @@ public:
                 count_behind++;   
             }
         }
-        if (count_behind>=8) {
+        if (count_behind>=5) {
             con_behind = true;
             if (behind_last == false){
                 behind_judge++;
@@ -90,7 +97,6 @@ public:
     void cross_pub(){
         if (ahead_judge!=0)
         {
-            ROS_INFO("%d",judge);
             cross_detect.data = GO_FORWARD;
             if(judge == 0){
                 cross_vision_pub.publish(cross_detect);
@@ -101,14 +107,13 @@ public:
             {
                 cross_detect.data = GO_BEHIND;
                 if(judge == 1){
-                    ROS_INFO("BEHIND_DETECT");
                     cross_vision_pub.publish(cross_detect);
                     judge++;
                 }
 
                 if(con_behind==false&&judge==2){
                     cross_detect.data = WHITECROSS;
-                    ROS_INFO("WHITECROSS_DETECT");
+                    ros::Duration(0.1).sleep();
                     cross_vision_pub.publish(cross_detect);
                     judge++;
                 }

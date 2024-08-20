@@ -17,7 +17,7 @@ geometry_msgs::Vector3 rpy_msg;
 geometry_msgs::Twist target_vel;
 int rotate_direction[6] = {RIGHT, RIGHT, LEFT, LEFT, RIGHT, RIGHT};
 int rotate_count = 0, rotate_flag = 0;
-double target, cur_yaw, last_yaw;
+double target, cur_yaw, last_yaw,once_yaw;
 PID pid;
 
 void imuCallback(const sensor_msgs::Imu::ConstPtr& msg)
@@ -36,7 +36,7 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr& msg)
   rpy_pub.publish(rpy_msg);
 
   // 添加ROS_INFO输出rpy?
-  ROS_INFO("Received IMU data: roll = %f, pitch = %f, yaw = %f", rpy_msg.x, rpy_msg.y, rpy_msg.z);
+  // ROS_INFO("Received IMU data: roll = %f, pitch = %f, yaw = %f", rpy_msg.x, rpy_msg.y, rpy_msg.z);
 
   if (rotate_flag == 0)
   {
@@ -54,14 +54,17 @@ void imuCallback(const sensor_msgs::Imu::ConstPtr& msg)
     {
       cur_yaw -= 2 * M_PI;
     }
+    // ROS_INFO("%lf",target);
     // target_vel.angular.z = pid.calc_output(target, cur_yaw);
     // __LIMIT(target_vel.angular.z, 0.005);
     // vel_pub.publish(target_vel);
-    if (abs(target - cur_yaw) < 0.01) 
+    double error = abs(target - cur_yaw);
+    ROS_INFO("%lf",error);
+    if (abs(error) < 0.001) 
     {
       success_msg.data = true;
       ROS_INFO("rotate_success");
-      success_pub.publish(success_msg);  // 发布旋转成功的消息
+      success_pub.publish(success_msg);  // 发布旋转成功的消xi
       rotate_count++;
       rotate_flag = 0;
       nh.setParam("/rotate_flag", rotate_flag);
